@@ -3768,6 +3768,7 @@
         };
         const comentarios = [f(["comentarios"]), f(["nota interna"])].filter(v=>v).join("\n").trim();
         return {
+          _comentarios: comentarios,
           nombres: f(["nombres"]),
           apellidos: f(["apellidos"]),
           tipo_documento: normTipoDoc(f(["tipo de documento"])),
@@ -3782,7 +3783,6 @@
           tipo_movilidad: f(["tipo de movilidad"]),
           recursos: f(["recursos"]),
           promedio: f(["promedio"]),
-          notas_internas: comentarios,
           link_carpeta_documentos: f(["link a la carpeta","carpeta en donde cargaste","carpeta"]),
           link_formulario_solicitud: f(["formulario para solicitud","formulario"]),
           link_certificado_notas: f(["certificado de notas"]),
@@ -3850,7 +3850,6 @@
               tipo_movilidad: r.tipo_movilidad || null,
               recursos: r.recursos || null,
               promedio: r.promedio ? parseFloat(r.promedio.replace(",",".")) || null : null,
-              notas_internas: r.notas_internas || null,
               link_carpeta_documentos: r.link_carpeta_documentos || null,
               link_formulario_solicitud: r.link_formulario_solicitud || null,
               link_certificado_notas: r.link_certificado_notas || null,
@@ -3884,6 +3883,14 @@
             const destPromises = [];
             if (r.destino1) destPromises.push(fetch(`${SB}/rest/v1/postulacion_destinos`, {method:"POST",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json"},body:JSON.stringify(dbClean({postulacion_id:post.id,institucion:r.destino1,orden:1,estado:"pendiente"}))}));
             if (r.destino2) destPromises.push(fetch(`${SB}/rest/v1/postulacion_destinos`, {method:"POST",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json"},body:JSON.stringify(dbClean({postulacion_id:post.id,institucion:r.destino2,orden:2,estado:"pendiente"}))}));
+            // Crear observación si hay comentarios y es nuevo registro
+            if (!existing && r._comentarios) {
+              destPromises.push(fetch(`${SB}/rest/v1/observaciones_postulacion`, {
+                method:"POST",
+                headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"},
+                body: JSON.stringify({postulacion_id:post.id, tipo:"info", mensaje:r._comentarios, creado_por:"ARI"})
+              }));
+            }
             await Promise.all(destPromises);
           }
           // CSV download
@@ -3958,7 +3965,7 @@
                             <td style={{padding:"6px 12px",color:C.text}}>{trunc(r.programa,20)}</td>
                             <td style={{padding:"6px 12px",color:C.eucalipto}}>{trunc(r.destino1,20)}</td>
                             <td style={{padding:"6px 12px",color:C.eucalipto}}>{trunc(r.destino2,20)}</td>
-                            <td style={{padding:"6px 12px",color:C.heliconia,maxWidth:180}}>{trunc(r.notas_internas,40)}</td>
+                            <td style={{padding:"6px 12px",color:C.heliconia,maxWidth:180}}>{trunc(r._comentarios,40)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4822,6 +4829,29 @@
         setSavingConv(false);
       };
 
+      const deleteConvocatoria = useCallback(async () => {
+        if (!convActual) return;
+        const nPost = postulaciones.length;
+        const msg = nPost > 0
+          ? `Esta convocatoria tiene ${nPost} postulación(es). ¿Eliminar también todas las postulaciones y sus datos? Esta acción no se puede deshacer.`
+          : `¿Eliminar la convocatoria "${convActual.nombre}"? Esta acción no se puede deshacer.`;
+        if (!window.confirm(msg)) return;
+        try {
+          if (nPost > 0) {
+            const ids = postulaciones.map(p=>p.id);
+            // delete destinos, obs, then postulaciones
+            await fetch(`${SB}/rest/v1/postulacion_destinos?postulacion_id=in.(${ids.join(",")})`,{method:"DELETE",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`}});
+            await fetch(`${SB}/rest/v1/observaciones_postulacion?postulacion_id=in.(${ids.join(",")})`,{method:"DELETE",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`}});
+            await fetch(`${SB}/rest/v1/postulaciones?convocatoria_id=eq.${convActual.id}`,{method:"DELETE",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`}});
+          }
+          await fetch(`${SB}/rest/v1/convocatorias?id=eq.${convActual.id}`,{method:"DELETE",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`}});
+          const remaining = convocatorias.filter(c=>c.id!==convActual.id);
+          setConvocatorias(remaining);
+          setConvActual(remaining.length ? remaining[remaining.length-1] : null);
+          setPostulaciones([]); setDestinos({}); setObsAbiertas({});
+        } catch(e){console.error(e); alert("Error al eliminar la convocatoria.");}
+      }, [convActual, convocatorias, postulaciones]);
+
       const programas = useMemo(() => {
         const set = new Set();
         postulaciones.forEach(p => { if(p.programa) { if(!fFacultad||p.facultad===fFacultad) set.add(p.programa); } });
@@ -5125,6 +5155,11 @@
               {isARI && (
                 <button onClick={()=>setNewConvForm(p=>!p)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:newConvForm?C.roble+"15":"#fff",color:C.text,fontSize:12,cursor:"pointer"}}>
                   <Plus size={12}/> Nueva
+                </button>
+              )}
+              {isARI && convActual && (
+                <button onClick={deleteConvocatoria} title="Eliminar esta convocatoria" style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,border:"1px solid #fca5a5",background:"#fff",color:"#dc2626",fontSize:12,cursor:"pointer"}}>
+                  <XIcon size={12}/> Eliminar
                 </button>
               )}
               {newConvForm && isARI && (
