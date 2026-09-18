@@ -3855,6 +3855,7 @@
               link_certificado_notas: r.link_certificado_notas || null,
               link_documento_identidad: r.link_documento_identidad || null,
               link_carta_consentimiento: r.link_carta_consentimiento || null,
+              notas_internas: null,
               etapa_actual: 1,
               aprobacion_facultad: false,
             });
@@ -3883,13 +3884,16 @@
             const destPromises = [];
             if (r.destino1) destPromises.push(fetch(`${SB}/rest/v1/postulacion_destinos`, {method:"POST",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json"},body:JSON.stringify(dbClean({postulacion_id:post.id,institucion:r.destino1,orden:1,estado:"pendiente"}))}));
             if (r.destino2) destPromises.push(fetch(`${SB}/rest/v1/postulacion_destinos`, {method:"POST",headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json"},body:JSON.stringify(dbClean({postulacion_id:post.id,institucion:r.destino2,orden:2,estado:"pendiente"}))}));
-            // Crear observación si hay comentarios y es nuevo registro
-            if (!existing && r._comentarios) {
-              destPromises.push(fetch(`${SB}/rest/v1/observaciones_postulacion`, {
-                method:"POST",
-                headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-                body: JSON.stringify({postulacion_id:post.id, tipo:"info", mensaje:r._comentarios, creado_por:"ARI"})
-              }));
+            // Crear observación si hay comentarios (sin duplicar si ya existe el mismo texto)
+            if (r._comentarios) {
+              const existingObs = await fetch(`${SB}/rest/v1/observaciones_postulacion?postulacion_id=eq.${post.id}&mensaje=eq.${encodeURIComponent(r._comentarios)}&select=id&limit=1`,{headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`}}).then(r=>r.json());
+              if (!existingObs || existingObs.length === 0) {
+                destPromises.push(fetch(`${SB}/rest/v1/observaciones_postulacion`, {
+                  method:"POST",
+                  headers:{"apikey":KEY,"Authorization":`Bearer ${KEY}`,"Content-Type":"application/json","Prefer":"return=minimal"},
+                  body: JSON.stringify({postulacion_id:post.id, tipo:"info", mensaje:r._comentarios, creado_por:"ARI"})
+                }));
+              }
             }
             await Promise.all(destPromises);
           }
