@@ -3758,10 +3758,19 @@
         // Collect all destino columns, pick non-empty values in order (handles Nacional/Internacional split)
         const destCols = hdrs.filter(h => nk(h).includes("instituci") && nk(h).includes("destino"));
         const destVals = destCols.map(col => String(row[col]||"").trim()).filter(v => v);
+        const normTipoDoc = v => {
+          const u = (v||"").toLowerCase();
+          if (u.includes("cedula de ciudadania")||u.includes("cédula de ciudadanía")||u==="cc") return "CC";
+          if (u.includes("cedula de extranjeria")||u.includes("cédula de extranjería")||u==="ce") return "CE";
+          if (u.includes("pasaporte")||u==="pp") return "PP";
+          if (u.includes("tarjeta de identidad")||u==="ti") return "TI";
+          return v;
+        };
+        const comentarios = [f(["comentarios"]), f(["nota interna"])].filter(v=>v).join("\n").trim();
         return {
           nombres: f(["nombres"]),
           apellidos: f(["apellidos"]),
-          tipo_documento: f(["tipo de documento"]),
+          tipo_documento: normTipoDoc(f(["tipo de documento"])),
           numero_documento: f(["no. documento","numero de identidad","numero documento","sin puntos"]),
           celular: f(["celular","numero de celular"]),
           correo_institucional: f(["correo electronico","correo institucional","email"]),
@@ -3773,6 +3782,7 @@
           tipo_movilidad: f(["tipo de movilidad"]),
           recursos: f(["recursos"]),
           promedio: f(["promedio"]),
+          notas_internas: comentarios,
           link_carpeta_documentos: f(["link a la carpeta","carpeta en donde cargaste","carpeta"]),
           link_formulario_solicitud: f(["formulario para solicitud","formulario"]),
           link_certificado_notas: f(["certificado de notas"]),
@@ -3840,6 +3850,7 @@
               tipo_movilidad: r.tipo_movilidad || null,
               recursos: r.recursos || null,
               promedio: r.promedio ? parseFloat(r.promedio.replace(",",".")) || null : null,
+              notas_internas: r.notas_internas || null,
               link_carpeta_documentos: r.link_carpeta_documentos || null,
               link_formulario_solicitud: r.link_formulario_solicitud || null,
               link_certificado_notas: r.link_certificado_notas || null,
@@ -3931,7 +3942,7 @@
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                       <thead>
                         <tr style={{background:C.bg}}>
-                          {["#","Nombre completo","Documento","Facultad","Programa","Destino 1","Destino 2"].map(h => (
+                          {["#","Nombre completo","Tipo doc.","Documento","Facultad","Programa","Destino 1","Destino 2","Comentarios"].map(h => (
                             <th key={h} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
                           ))}
                         </tr>
@@ -3941,11 +3952,13 @@
                           <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"#fff":C.bg}}>
                             <td style={{padding:"6px 12px",color:C.muted}}>{i+1}</td>
                             <td style={{padding:"6px 12px",color:C.text,fontWeight:500}}>{r.nombres} {r.apellidos}</td>
+                            <td style={{padding:"6px 12px",color:C.muted}}>{r.tipo_documento}</td>
                             <td style={{padding:"6px 12px",color:C.muted}}>{r.numero_documento}</td>
-                            <td style={{padding:"6px 12px",color:C.text}}>{trunc(r.facultad,22)}</td>
-                            <td style={{padding:"6px 12px",color:C.text}}>{trunc(r.programa,22)}</td>
-                            <td style={{padding:"6px 12px",color:C.eucalipto}}>{trunc(r.destino1,22)}</td>
-                            <td style={{padding:"6px 12px",color:C.eucalipto}}>{trunc(r.destino2,22)}</td>
+                            <td style={{padding:"6px 12px",color:C.text}}>{trunc(r.facultad,20)}</td>
+                            <td style={{padding:"6px 12px",color:C.text}}>{trunc(r.programa,20)}</td>
+                            <td style={{padding:"6px 12px",color:C.eucalipto}}>{trunc(r.destino1,20)}</td>
+                            <td style={{padding:"6px 12px",color:C.eucalipto}}>{trunc(r.destino2,20)}</td>
+                            <td style={{padding:"6px 12px",color:C.heliconia,maxWidth:180}}>{trunc(r.notas_internas,40)}</td>
                           </tr>
                         ))}
                       </tbody>
